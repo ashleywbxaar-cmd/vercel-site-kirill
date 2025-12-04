@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VINCHI - Загрузка...</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #008854 0%, #00210c 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .loader-container {
+            text-align: center;
+            max-width: 400px;
+        }
+        
+        .logo {
+            font-size: 48px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            margin-bottom: 24px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            margin: 0 auto 24px;
+            animation: spin 1s linear infinite;
+        }
+        
+        .message {
+            font-size: 16px;
+            opacity: 0.9;
+            margin-bottom: 12px;
+        }
+        
+        .status {
+            font-size: 14px;
+            opacity: 0.7;
+            font-family: monospace;
+            display: none;
+        }
+        
+        .debug {
+            display: none;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .error {
+            background: rgba(255, 0, 0, 0.2);
+            border: 2px solid rgba(255, 0, 0, 0.5);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loader-container">
+        <div class="logo">VINCHI</div>
+        <div class="spinner"></div>
+        <div class="message">Загрузка...</div>
+        <div class="status" id="status"></div>
+        <div class="debug" id="debug"></div>
+    </div>
+
+    <script>
+        // Target website URL - CHANGE THIS
+        const TARGET_SITE = 'https://vinchi.ct.ws';
+        
+        // Telegram WebApp
+        const tg = window.Telegram?.WebApp;
+        
+        // Debug logging (disabled visually)
+        function debugLog(message, isError = false) {
+            console.log('[Bridge]', message);
+        }
+        
+        // Status updates (disabled visually)
+        function updateStatus(message) {
+            debugLog(message);
+        }
+        
+        // Extract user data from Telegram
+        function extractUserData() {
+            updateStatus('Получение данных пользователя...');
+            
+            debugLog('=== ПРОВЕРКА TELEGRAM WEBAPP ===');
+            debugLog('window.Telegram exists: ' + (!!window.Telegram));
+            debugLog('window.Telegram.WebApp exists: ' + (!!window.Telegram?.WebApp));
+            
+            if (!tg) {
+                debugLog('ERROR: Telegram WebApp not found!', true);
+                return null;
+            }
+            
+            debugLog('tg.initData exists: ' + (!!tg.initData));
+            debugLog('tg.initData length: ' + (tg.initData?.length || 0));
+            debugLog('tg.initDataUnsafe exists: ' + (!!tg.initDataUnsafe));
+            
+            if (tg.initDataUnsafe?.user) {
+                debugLog('USER FOUND!');
+                debugLog('User ID: ' + tg.initDataUnsafe.user.id);
+                debugLog('Username: ' + (tg.initDataUnsafe.user.username || 'NO'));
+                debugLog('First name: ' + (tg.initDataUnsafe.user.first_name || 'NO'));
+            } else {
+                debugLog('ERROR: User not found in initDataUnsafe!', true);
+            }
+            
+            if (!tg.initData) {
+                debugLog('ERROR: initData is empty!', true);
+                return null;
+            }
+            
+            const userData = {
+                initData: tg.initData,
+                initDataUnsafe: tg.initDataUnsafe,
+                user: tg.initDataUnsafe?.user ? {
+                    id: tg.initDataUnsafe.user.id,
+                    first_name: tg.initDataUnsafe.user.first_name,
+                    last_name: tg.initDataUnsafe.user.last_name,
+                    username: tg.initDataUnsafe.user.username,
+                    language_code: tg.initDataUnsafe.user.language_code,
+                    photo_url: tg.initDataUnsafe.user.photo_url,
+                    phone_number: tg.initDataUnsafe.user.phone_number,
+                    is_premium: tg.initDataUnsafe.user.is_premium
+                } : null,
+                platform: tg.platform,
+                colorScheme: tg.colorScheme,
+                viewportHeight: tg.viewportHeight,
+                timestamp: Date.now()
+            };
+            
+            debugLog('User data prepared');
+            debugLog('Will redirect with user: ' + userData.user?.id);
+            return userData;
+        }
+        
+        // Redirect to main site with user data
+        function redirectToMainSite(userData) {
+            updateStatus('Перенаправление...');
+            
+            debugLog('=== ПОДГОТОВКА РЕДИРЕКТА ===');
+            
+            // Encode user data to base64
+            const jsonString = JSON.stringify(userData);
+            debugLog('JSON length: ' + jsonString.length);
+            
+            const encodedData = btoa(encodeURIComponent(jsonString));
+            debugLog('Encoded data length: ' + encodedData.length);
+            
+            // Build URL with data
+            const url = new URL(TARGET_SITE);
+            url.searchParams.set('tg_data', encodedData);
+            
+            // Handle Telegram Start Parameter (deep linking)
+            const startParam = tg.initDataUnsafe?.start_param;
+            if (startParam) {
+                debugLog('Found start param: ' + startParam);
+                url.searchParams.set('start_param', startParam);
+            }
+            
+            debugLog('TARGET_SITE: ' + TARGET_SITE);
+            debugLog('Full URL length: ' + url.href.length);
+            debugLog('URL: ' + url.href.substring(0, 100) + '...');
+            
+            // Check if there's a return path
+            const urlParams = new URLSearchParams(window.location.search);
+            const returnPath = urlParams.get('return');
+            if (returnPath) {
+                debugLog('Return path found: ' + returnPath);
+                try {
+                    const returnUrl = new URL(returnPath, TARGET_SITE);
+                    returnUrl.searchParams.set('tg_data', encodedData);
+                    debugLog('Redirecting to return URL');
+                    setTimeout(() => window.location.replace(returnUrl.href), 2000);
+                    return;
+                } catch (e) {
+                    debugLog('Error parsing return path: ' + e.message);
+                }
+            }
+            
+            // Add current path if exists
+            const currentPath = window.location.pathname;
+            if (currentPath && currentPath !== '/' && currentPath !== '/index.html') {
+                url.searchParams.set('path', currentPath);
+                debugLog('Added path: ' + currentPath);
+            }
+            
+            // Add query params if exists
+            const currentSearch = window.location.search;
+            if (currentSearch) {
+                const params = new URLSearchParams(currentSearch);
+                params.forEach((value, key) => {
+                    if (key !== 'tg_data') {
+                        url.searchParams.set(key, value);
+                    }
+                });
+            }
+            
+            debugLog('Redirecting immediately...');
+            debugLog('User ID being sent: ' + userData.user?.id);
+            
+            // Redirect immediately
+            window.location.replace(url.href);
+        }
+        
+        // Show error
+        function showError(message) {
+            updateStatus('Ошибка');
+            
+            const container = document.querySelector('.loader-container');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.innerHTML = `
+                <div style="font-weight: 600; margin-bottom: 8px;">⚠️ Ошибка</div>
+                <div style="font-size: 14px;">${message}</div>
+                <div style="margin-top: 12px; font-size: 14px; opacity: 0.8;">
+                    Попробуйте открыть приложение заново из Telegram
+                </div>
+            `;
+            container.appendChild(errorDiv);
+        }
+        
+        // Initialize
+        async function init() {
+            try {
+                debugLog('=== BRIDGE STARTED ===');
+                debugLog('URL: ' + window.location.href);
+                updateStatus('Инициализация Telegram WebApp...');
+                
+                if (!tg) {
+                    throw new Error('Telegram WebApp не найден! Откройте через Telegram бота.');
+                }
+                
+                debugLog('Telegram WebApp found');
+                
+                // Expand app
+                if (tg.expand) {
+                    tg.expand();
+                    debugLog('App expanded');
+                }
+                
+                // Ready
+                if (tg.ready) {
+                    tg.ready();
+                    debugLog('App ready');
+                }
+                
+                debugLog('Waiting for data...');
+                // Wait a bit for data to be available
+                await new Promise(resolve => setTimeout(resolve, 50));
+                
+                // Extract user data
+                const userData = extractUserData();
+                
+                if (!userData) {
+                    throw new Error('userData is null');
+                }
+                
+                if (!userData.initData) {
+                    debugLog('ERROR: userData.initData is empty!', true);
+                    throw new Error('initData пуст - возможно открыто не через бота');
+                }
+                
+                if (!userData.user) {
+                    debugLog('WARNING: userData.user is null', true);
+                }
+                
+                updateStatus('Данные получены');
+                
+                // Redirect to main site
+                redirectToMainSite(userData);
+                
+            } catch (error) {
+                debugLog('FATAL ERROR: ' + error.message, true);
+                console.error('[Bridge] Error:', error);
+                showError(error.message);
+            }
+        }
+        
+        // Start when DOM ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
